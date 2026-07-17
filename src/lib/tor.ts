@@ -137,14 +137,18 @@ export async function torFetch(
     throw new Error(`tor fetch failed: ${e.message || String(err)}`);
   }
 
-  const raw = res.data as unknown as Buffer;
+  const raw: Buffer = res.data;
   const bodyBytes = raw.length;
   const truncated = false; // axios enforces via maxContentLength; if we got here it fit
-  const body = bufferToString(raw, res.headers["content-type"]);
+  const contentTypeHeader = res.headers["content-type"];
+  const contentType =
+    typeof contentTypeHeader === "string" ? contentTypeHeader : undefined;
+  const body = bufferToString(raw, contentType);
   const responseHeaders: Record<string, string> = {};
-  for (const [k, v] of Object.entries(res.headers)) {
+  for (const [k, v] of Object.entries(res.headers as Record<string, unknown>)) {
     if (typeof v === "string") responseHeaders[k] = v;
     else if (Array.isArray(v)) responseHeaders[k] = v.join(", ");
+    else if (typeof v === "number" || typeof v === "boolean") responseHeaders[k] = String(v);
   }
   return {
     status: res.status,

@@ -23,7 +23,7 @@ services:
       # tor listens on 9050 as soon as SOCKS is ready, well before the first
       # circuit is bootstrapped. This gives us "socket open" not "circuit up",
       # but that's enough to prevent the web container from crashing at boot.
-      test: ["CMD-SHELL", "nc -z localhost 9050"]
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 9050"]
       interval: 5s
       timeout: 3s
       retries: 20
