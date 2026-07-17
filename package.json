@@ -1,0 +1,40 @@
+{
+  "name": "tor-mcp",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Route HTTP requests through the Tor network as an MCP skill. Rotating anonymous exit IPs, no logs of request bodies. Good for anonymity + non-Cloudflare scraping; will NOT beat Cloudflare (exit nodes are blocked).",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/globalion/tor-mcp"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start -p 3000",
+    "lint": "eslint",
+    "prisma": "prisma"
+  },
+  "dependencies": {
+    "@auth/prisma-adapter": "^2.11.1",
+    "@prisma/client": "6.19.2",
+    "axios": "^1.7.7",
+    "next": "16.1.6",
+    "next-auth": "^5.0.0-beta.30",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "socks-proxy-agent": "^8.0.4",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "prisma": "6.19.2",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

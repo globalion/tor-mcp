@@ -1,0 +1,140 @@
+// tor-mcp Prisma schema.
+//
+// No credit ledger for v0.1 — every user is on the free tier (100 req/day
+// per key). Platform + PlatformPool tables are stubbed for future paid
+// tiers so aggregators (paperloft) can grant higher quotas without a
+// schema change.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Platform aggregators (paperloft, custom clients) ---
+//
+// Same shape as docs-mcp/cron-mcp/browser-mcp: any downstream aggregator
+// that provisions sub-accounts via /api/platform/provision-user
+// authenticates with a shared secret. The pool is currently unused (free
+// tier only) but the row is created upfront so grant-credits works when
+// we add paid tiers.
+
+model Platform {
+  id                String   @id @default(cuid())
+  name              String   @unique
+  sharedSecretHash  String   @unique  // sha256 of the raw secret
+  createdAt         DateTime @default(now())
+
+  pool              PlatformPool?
+  users             User[]
+}
+
+model PlatformPool {
+  platformId  String   @id
+  balance     Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  platform    Platform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+}
+
+// --- NextAuth + platform-provisioned users ---
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+
+  // Platform provisioning: NULL for direct sign-ups on tor.regiq.in.
+  platformId    String?
+  platformRef   String?
+  platform      Platform? @relation(fields: [platformId], references: [id], onDelete: SetNull)
+
+  accounts     Account[]
+  sessions     Session[]
+  apiKeys      ApiKey[]
+  requestLogs  RequestLog[]
+
+  @@unique([platformId, platformRef])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// --- MCP API keys ---
+// Raw format: `tor_live_<48 hex>`. SHA-256 hash stored; raw shown once.
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  userId     String
+  keyHash    String    @unique
+  keyPrefix  String
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// --- Request audit log ---
+// Metadata only. NEVER logs request bodies or response bodies (that's the
+// whole point of routing through Tor — we don't want to know what the
+// user is doing). Just enough to enforce rate limits + spot abuse patterns
+// (e.g. one key hammering the same host).
+
+model RequestLog {
+  id         String   @id @default(cuid())
+  userId     String
+  host       String   // e.g. "duckduckgo.com" — no path, no query
+  method     String   // GET/POST/HEAD
+  status     Int      // HTTP response status (0 if network error)
+  durationMs Int
+  bytesOut   Int      @default(0)
+  errorCode  String?  // e.g. "timeout", "socks_refused", "response_too_large"
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([host, createdAt])
+}

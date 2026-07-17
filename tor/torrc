@@ -1,0 +1,26 @@
+# Tor daemon config for tor-mcp.
+#
+# SocksPort binds to all interfaces on 9050 (inside the docker network only —
+# not published to the host). AllowNonRFC953Hostnames because we route DNS
+# through Tor via socks5h:// and don't want to reject weird internal names.
+
+SocksPort 0.0.0.0:9050
+
+# Control port for SIGNAL NEWNYM (circuit rotation). Password is set at
+# entrypoint by hashing TOR_CONTROL_PASSWORD env var and injecting the
+# resulting HashedControlPassword line here.
+ControlPort 0.0.0.0:9051
+
+# Faster startup — skip DNS resolution of guard nodes on first launch
+AvoidDiskWrites 1
+
+# Sensible defaults — the network cares about these being real
+DataDirectory /var/lib/tor
+Log notice stdout
+
+# Circuit lifetime — how long before a new "identity" is chosen automatically.
+# 10 min is the default but stated explicitly for clarity.
+MaxCircuitDirtiness 600
+
+# Don't allow the control port to run scripts / access filesystem
+DisableDebuggerAttachment 1
