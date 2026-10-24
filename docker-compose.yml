@@ -1,0 +1,69 @@
+# tor-mcp deployment stack.
+#
+# Three containers on a shared internal network:
+#   tor       — tor daemon, SOCKS5 :9050, control :9051
+#   db        — postgres 16
+#   web       — Next.js app (talks to tor via socks5h://tor:9050)
+#
+# Only `web` publishes a host port. tor's SOCKS + control ports stay on the
+# internal docker network — never exposed to the internet.
+
+services:
+  tor:
+    container_name: tor-mcp-tor
+    build:
+      context: ./tor
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      # Set in .env — this is the plaintext password the web container
+      # sends over the control connection. Tor hashes it at boot.
+      TOR_CONTROL_PASSWORD: ${TOR_CONTROL_PASSWORD:?TOR_CONTROL_PASSWORD required}
+    healthcheck:
+      # tor listens on 9050 as soon as SOCKS is ready, well before the first
+      # circuit is bootstrapped. This gives us "socket open" not "circuit up",
+      # but that's enough to prevent the web container from crashing at boot.
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 9050"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+
+  db:
+    container_name: tor-mcp-db
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: e175b8f6909d313d7821b85b0c7a6dfc208f42b158c9a2f1
+      POSTGRES_DB: tor_mcp
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d tor_mcp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    container_name: tor-mcp-web
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://admin:e175b8f6909d313d7821b85b0c7a6dfc208f42b158c9a2f1@db:5432/tor_mcp
+      TOR_SOCKS_URL: socks5h://tor:9050
+      TOR_CONTROL_HOST: tor
+      TOR_CONTROL_PORT: "9051"
+    ports:
+      - "3021:3000"
+    depends_on:
+      tor:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
